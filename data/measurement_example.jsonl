@@ -1,0 +1,6 @@
+{"batch_size": 1, "prompt_tokens": 500, "ttft_ms": 55.0, "itl_ms": 12.4, "n": 1}
+{"batch_size": 1, "prompt_tokens": 2000, "ttft_ms": 180.0, "itl_ms": 12.3, "n": 1}
+{"batch_size": 1, "prompt_tokens": 8000, "ttft_ms": 680.0, "itl_ms": 12.5, "n": 1}
+{"batch_size": 8, "prompt_tokens": 2000, "ttft_ms": 410.0, "itl_ms": 15.1, "n": 8}
+{"batch_size": 32, "prompt_tokens": 2000, "ttft_ms": 1450.0, "itl_ms": 23.6, "n": 32}
+{"batch_size": 64, "prompt_tokens": 2000, "ttft_ms": 2900.0, "itl_ms": 34.8, "n": 64}

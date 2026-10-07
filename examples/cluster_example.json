@@ -1,0 +1,11 @@
+{
+ "n_gpus": 1,
+ "max_batch": 64,
+ "kv_capacity_tokens": 200000,
+ "iter_base_ms": 12.107,
+ "iter_per_seq_ms": 0.3557,
+ "prefill_tokens_per_s": 12000.0,
+ "prefix_cache": true,
+ "prefix_cache_slots": 32,
+ "gpu_hour_usd": 2.5
+}
