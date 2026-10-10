@@ -28,6 +28,7 @@ def _one(base_url: str, model: str, prompt: str, max_tokens: int, out: list[dict
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
             "stream": True,
+            "stream_options": {"include_usage": True},
             "temperature": 0,
         }
     ).encode()
@@ -39,22 +40,50 @@ def _one(base_url: str, model: str, prompt: str, max_tokens: int, out: list[dict
     t0 = time.perf_counter()
     first = None
     stamps: list[float] = []
+    completion_tokens = None
+    prompt_usage = None
+    content = []
     with urllib.request.urlopen(req, timeout=600) as resp:
         for raw in resp:
             line = raw.decode().strip()
             if not line.startswith("data:") or line.endswith("[DONE]"):
                 continue
             chunk = json.loads(line[5:])
-            delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content")
+            usage = chunk.get("usage") or {}
+            if usage.get("completion_tokens") is not None:
+                completion_tokens = usage["completion_tokens"]
+                prompt_usage = usage.get("prompt_tokens")
+            choices = chunk.get("choices") or []
+            delta = choices[0].get("delta", {}).get("content") if choices else None
             if delta:
                 now = time.perf_counter()
                 if first is None:
                     first = now
                 stamps.append(now)
+                content.append(delta)
     if first is None:
+        out[idx] = {"error": "No content returned"}
         return
-    itl = (stamps[-1] - stamps[0]) / (len(stamps) - 1) if len(stamps) > 1 else 0.0
-    out[idx] = {"ttft_ms": round((first - t0) * 1000, 1), "itl_ms": round(itl * 1000, 2), "output_tokens": len(stamps)}
+    measured = completion_tokens is not None
+    tokens = completion_tokens if measured else max(1, round(len("".join(content)) / 4))
+    # Effective decode throughput, not a per-token timestamp measurement: chunks may contain many tokens.
+    itl = (stamps[-1] - stamps[0]) / (tokens - 1) if tokens > 1 and len(stamps) > 1 else None
+    out[idx] = {
+        "ttft_ms": round((first - t0) * 1000, 1),
+        "itl_ms": round(itl * 1000, 2) if itl is not None else None,
+        "output_tokens": tokens,
+        "prompt_tokens": prompt_usage,
+        "token_count_source": "server_usage" if measured else "estimated_chars_div_4",
+        "content_chunks": len(stamps),
+        "timing_method": "effective_decode_interval",
+    }
+
+
+def _safe_one(*args) -> None:
+    try:
+        _one(*args)
+    except Exception as err:
+        args[-2][args[-1]] = {"error": f"{type(err).__name__}: {err}"}
 
 
 def measure(
@@ -66,19 +95,34 @@ def measure(
             prompt = _prompt(p)
             out: list[dict] = [{} for _ in range(c)]
             threads = [
-                threading.Thread(target=_one, args=(base_url, model, prompt, max_tokens, out, i)) for i in range(c)
+                threading.Thread(target=_safe_one, args=(base_url, model, prompt, max_tokens, out, i)) for i in range(c)
             ]
             for t in threads:
                 t.start()
             for t in threads:
                 t.join()
-            good = [o for o in out if o]
+            good = [o for o in out if o and not o.get("error") and o.get("itl_ms") is not None]
             if not good:
+                rows.append(
+                    {
+                        "batch_size": c,
+                        "prompt_tokens": p,
+                        "n": 0,
+                        "errors": [o.get("error", "Insufficient content for timing") for o in out],
+                    }
+                )
                 continue
             rows.append(
                 {
                     "batch_size": c,
-                    "prompt_tokens": p,
+                    "prompt_tokens": round(sum(o["prompt_tokens"] or p for o in good) / len(good)),
+                    "prompt_count_source": "server_usage"
+                    if all(o["prompt_tokens"] is not None for o in good)
+                    else "estimated_prompt_length",
+                    "token_count_source": "server_usage"
+                    if all(o["token_count_source"] == "server_usage" for o in good)
+                    else "estimated_or_mixed",
+                    "errors": [o["error"] for o in out if o.get("error")],
                     "ttft_ms": round(sum(o["ttft_ms"] for o in good) / len(good), 1),
                     "itl_ms": round(sum(o["itl_ms"] for o in good) / len(good), 2),
                     "n": len(good),

@@ -30,18 +30,35 @@ def _linfit(xs: list[float], ys: list[float]) -> tuple[float, float]:
 
 
 def fit(rows: list[dict], base: ClusterSpec | None = None) -> ClusterSpec:
+    rows = [
+        r
+        for r in rows
+        if r.get("n", 1) > 0
+        and r.get("itl_ms") is not None
+        and r.get("token_count_source", "server_usage") == "server_usage"
+    ]
+    if not rows:
+        raise ValueError(
+            "No measurements with server-reported token usage; estimated counts cannot calibrate token latency"
+        )
     base = base or ClusterSpec()
     a, b = _linfit([float(r["batch_size"]) for r in rows], [float(r["itl_ms"]) for r in rows])
     iter_base_ms = max(0.5, a)
     iter_per_seq_ms = max(0.0, b)
 
     bmin = min(int(r["batch_size"]) for r in rows)
-    small = [r for r in rows if int(r["batch_size"]) == bmin]
+    small = [
+        r
+        for r in rows
+        if int(r["batch_size"]) == bmin and r.get("prompt_count_source", "server_usage") == "server_usage"
+    ]
     one_iter_ms = iter_base_ms + iter_per_seq_ms * bmin
-    _, slope_ms_per_tok = _linfit(
-        [float(r["prompt_tokens"]) for r in small],
-        [max(0.0, float(r["ttft_ms"]) - one_iter_ms) for r in small],
-    )
+    slope_ms_per_tok = 0.0
+    if small:
+        _, slope_ms_per_tok = _linfit(
+            [float(r["prompt_tokens"]) for r in small],
+            [max(0.0, float(r["ttft_ms"]) - one_iter_ms) for r in small],
+        )
     prefill = 1000.0 / slope_ms_per_tok if slope_ms_per_tok > 0 else base.prefill_tokens_per_s
     return base.model_copy(
         update={

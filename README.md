@@ -1,14 +1,68 @@
 # agentsim
 
+## What this project demonstrates
+
+Demonstrates how explicit serving-model assumptions affect agent latency, throughput and estimated cost. Default outputs are modeled, not measured GPU performance.
+
+## Watch the demo
+
+![Demo](docs/demo.gif)
+
+[Portfolio videos](https://anhduongvo.github.io/projects/agent-workload-sim/). Clinical recordings use the separate simplified interactive demo.
+
+## Try it offline
+
+Python 3.11–3.13. In a fresh virtual environment, from this repository:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+agentsim run --profile fanout --runs 20 --gpus 2 --agents 4
+pytest -q
+```
+
+## Run with NVIDIA or another configured backend
+
+NVIDIA is optional: benchmark a running OpenAI-compatible endpoint with streaming usage. Set `AGENTSIM_API_KEY` if required. `--model` must name a served model. Failures remain in the measurement report. Validate the fit on held-out workloads.
+
+Model IDs in `.env.example` and NAT configs are examples, not a current availability guarantee. Check your endpoint before running; the validation below does not include live model execution.
+
+## What is verified
+
+Simulation behavior and mocked benchmark token accounting. Server token usage is distinct from content chunks; estimates are labelled and excluded from token-latency calibration. Effective decode interval is an aggregate approximation.
+
+| Validation layer | Status |
+|---|---|
+| Unit/regression tests | Executed locally on Python 3.12; see `docs/validation.md` |
+| Mocked/simulated integrations | Executed locally; scope documented in tests |
+| Live hosted endpoints | Not executed; access and appropriate inputs required |
+| Self-hosted GPU endpoints | Not executed |
+| Domain-specific validation | Not completed; synthetic examples only |
+
+See [validation details](docs/validation.md). The architecture and detailed workflows follow.
+
+## Architecture and detailed workflows
+
 **A discrete-event simulator and cost model for LLM agent workloads.** An agent run is not one prompt but a graph of LLM calls, tool calls and waits, often with sub-agents fanning out and joining again. agentsim replays thousands of such runs against a model of a serving cluster (replicas with continuous batching, a KV-cache budget, a prefix cache, a scheduler) and reports throughput, latency percentiles, time lost at synchronization points, GPU utilization and cost per run. It answers questions like: how many concurrent agents do two GPUs sustain before p95 latency doubles, what does the fan-out in a research agent cost, does a shortest-job-first scheduler help the short runs without starving the long ones, and is the prefix cache worth anything for this workload.
 
 It is pure Python with one dependency (pydantic), runs a 300-run sweep in a few seconds, and can be calibrated against a real endpoint with the bundled benchmark.
+
+## Demo
+
+![agentsim demo](docs/demo.gif)
+
+The recording runs the fan-out profile, compares fifo and srpt on a mixed workload, produces the sweep figure, and shows the benchmark and calibration steps. The video is on [anhduongvo.github.io](https://anhduongvo.github.io/projects/agent-workload-sim/).
+
+## Results
 
 ![sweep](docs/sweep_mixed.png)
 
 *Mixed workload (50% single-turn chat, 30% ReAct loops, 20% fan-out research agents) on two replicas with a batch limit of 32, sweeping the number of concurrent agents for three admission policies. Throughput saturates at about 32 agents; beyond that, extra agents only add queueing: p95 run latency and time to first token climb while cost per run stops falling. The policies agree until the replicas saturate, then differ in whom they make wait.*
 
 ## How it works
+
+![model](docs/model.png)
 
 **Workload.** A run is a list of stages. Each stage holds one or more branches that execute in parallel (a fan-out), and the next stage starts when all branches have finished (a join). A branch is a sequence of steps: an LLM call (prompt tokens, output tokens, an optional cacheable prefix) or a tool call (wall time, no GPU). Four synthetic profiles are built in, with token counts drawn around values typical of the clinical agents in this portfolio:
 
@@ -74,7 +128,7 @@ agentsim run --cluster cluster.json --profile clinical --gpus 1 --agents 16
 ```python
 from agentsim import ClusterSpec, SchedulerSpec, simulate, summarize, load_runs
 
-runs = load_runs("data/agenteval_traces.jsonl")       # agenteval records are converted automatically
+runs = load_runs("data/agenteval_traces.jsonl")  # agenteval records are converted automatically
 res = simulate(runs * 40, ClusterSpec(n_gpus=2), SchedulerSpec(policy="srpt"), n_agents=16)
 print(summarize(res))
 ```
