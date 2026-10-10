@@ -4,11 +4,11 @@
 
 Demonstrates how explicit serving-model assumptions affect agent latency, throughput and estimated cost. Default outputs are modeled, not measured GPU performance.
 
-## Watch the demo
+## CLI example
 
-![Demo](docs/demo.gif)
+![CLI input and output](docs/agentsim.png)
 
-[Portfolio videos](https://anhduongvo.github.io/projects/agent-workload-sim/). Clinical recordings use the separate simplified interactive demo.
+[Portfolio examples](https://anhduongvo.github.io/projects/agent-workload-sim/). Clinical recordings use the separate simplified interactive demo.
 
 ## Try it offline
 
@@ -50,9 +50,7 @@ It is pure Python with one dependency (pydantic), runs a 300-run sweep in a few 
 
 ## Demo
 
-![agentsim demo](docs/demo.gif)
-
-The recording runs the fan-out profile, compares fifo and srpt on a mixed workload, produces the sweep figure, and shows the benchmark and calibration steps. The video is on [anhduongvo.github.io](https://anhduongvo.github.io/projects/agent-workload-sim/).
+The command/output image shows the same seeded mixed workload swept over 4, 16 and 64 agents with fifo, srpt and progress scheduling. It displays modeled throughput, p95 latency, join-wait share and utilization. The command/output examples are on [anhduongvo.github.io](https://anhduongvo.github.io/projects/agent-workload-sim/).
 
 ## Results
 

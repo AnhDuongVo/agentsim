@@ -19,3 +19,7 @@ Simulation, streaming server usage versus chunks/estimates, request failures, ex
 The GitHub workflows have been added or retained, but their remote execution has not been verified after these changes. Unit tests establish behavior on fixtures; they do not establish semantic or clinical correctness.
 
 Calibration excludes explicitly estimated completion counts. When prompt counts are estimated, the prefill fit retains its baseline rate rather than inferring a measured rate from approximate prompt lengths. Existing example measurements with no provenance are legacy illustrative inputs and should not be presented as measured hardware evidence.
+
+## Re-review follow-up, 10 October 2026
+
+Added GitHub Actions on push, PR and manual dispatch for Python 3.11–3.13, lint/format and simulator/calibration regressions. 18 tests passed locally; hosted CI execution awaits publication.
